@@ -254,8 +254,10 @@ int main(void)
   {
 	  switch(mode) {
 	  case MODE_DISP:
-		  if(sw1_read(1))
+		  if(sw1_read(1)) {
 			 mode = MODE_PROG;
+			 sp_idx_chgflag = 1;
+		  }
 		  /* TODO dipslay rpm */
 		  /* TODO update rpm based on refresh rate */
 		  break;
@@ -264,17 +266,28 @@ int main(void)
 		  if(sp_idx_chgflag) {
 			  curr = &sp_arr[sp_idx];
 //			  disp_text(&curr->name, strlen(curr->name)); /* TODO fn to be created */
-			  disp_no(curr->idx + 10);
+			  if(sp_idx == SP_COUNT)
+				  disp_no(9); /* TODO Print exit */
+			  else {
+				  disp_no(curr->idx + 10);
+			  }
 			  sp_idx_chgflag = 0;
 		  }
-		  if(sw1_read(0))
-			 mode = MODE_SET;
+		  if(sw1_read(0)) {
+			  if(sp_idx == SP_COUNT) {
+				  sp_idx = 0; /* reset index */
+				  mode = MODE_DISP;
+			  } else {
+				  sp_val_chgflag = 1;
+				  mode = MODE_SET;
+			  }
+		  }
 		  if(sw2_read(0)) { /* up button */
-			 sp_idx = (sp_idx == SP_COUNT - 1) ? 0 : sp_idx + 1;
+			 sp_idx = (sp_idx == SP_COUNT) ? 0 : sp_idx + 1;
 			 sp_idx_chgflag = 1;
 		  }
 		  if(sw3_read(0)) {/* down button */
-			 sp_idx = (sp_idx == 0) ? SP_COUNT - 1 : sp_idx - 1;
+			 sp_idx = (sp_idx == 0) ? SP_COUNT : sp_idx - 1;
 			 sp_idx_chgflag = 1;
 		  }
 		  break;
