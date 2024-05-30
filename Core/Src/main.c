@@ -1,4 +1,4 @@
-
+/* USER CODE BEGIN Header */
 /**
   ******************************************************************************
   * @file           : main.c
@@ -34,7 +34,7 @@
 /* USER CODE BEGIN PD */
 #define DAC_CONV_FACTOR		((float)4096/20000)
 #define CLK_FREQ			(48000000UL)
-#define DEBOUNCE_TIME		(100)
+#define DEBOUNCE_TIME		(200)
 #define LONG_PRESS_TIME		(3000)
 
 #define MODE_DISP			0
@@ -42,6 +42,7 @@
 #define MODE_SET			2
 #define SP_COUNT			3
 /* USER CODE END PD */
+
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 #define SW1_IN()			(HAL_GPIO_ReadPin(SW_1_IN_GPIO_Port, SW_1_IN_Pin))
@@ -185,9 +186,11 @@ uint32_t sec;
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim) {
 	static uint8_t disp_idx = 0;
 	if(htim->Instance == TIM16) {
+		if(sec != 0 && sec % 4 == 0) { /* every 4 ms */
 		// Do stuff
-		display_value(disp_idx + 1, char_idxs[disp_idx]);
-		disp_idx = (disp_idx == 5) ? 0 : disp_idx + 1;
+			display_value(disp_idx + 1, char_idxs[disp_idx]);
+			disp_idx = (disp_idx == 5) ? 1 - 1 : disp_idx + 1;
+		}
 	}
 	/* TODO ppm, rps clear somewhere else */
 	if(sec % 100 == 0) pps = 0, rpm = 0; /* change in other func */
@@ -258,6 +261,7 @@ int main(void)
 		  if(sp_idx_chgflag) {
 			  curr = &sp_arr[sp_idx];
 //			  disp_text(&curr->name, strlen(curr->name)); /* TODO fn to be created */
+			  disp_no(curr->idx + 10);
 			  sp_idx_chgflag = 0;
 		  }
 		  if(sw1_read(0))
@@ -273,11 +277,14 @@ int main(void)
 		  break;
 	  case MODE_SET:
 		  /* TODO display value */
-		  if(sp_val_chgflag)
+		  if(sp_val_chgflag) {
 			  disp_no(curr->val);
+			  sp_val_chgflag = 0;
+		  }
 		  if(sw1_read(0)) {
 			  /* on press, write val to eeprom */
 //			  sp_save(sp_idx, curr->val); /* TODO implement sp_save */
+			  sp_idx_chgflag = 1;
 			  mode = MODE_PROG;
 		  }
 		  if(sw2_read(0)) { /* up button */
