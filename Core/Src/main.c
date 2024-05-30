@@ -34,7 +34,7 @@
 /* USER CODE BEGIN PD */
 #define DAC_CONV_FACTOR		((float)4096/20000)
 #define CLK_FREQ			(48000000UL)
-#define DEBOUNCE_TIME		(200)
+#define DEBOUNCE_TIME		(130)
 #define LONG_PRESS_TIME		(3000)
 
 #define MODE_DISP			0
@@ -81,6 +81,7 @@ uint8_t sw1_read(uint8_t is_long) {
 		sw1_flag = 1;
 		if(sw1_timer > \
 				(is_long ? LONG_PRESS_TIME : DEBOUNCE_TIME)) {
+			sw1_timer = 0;
 			return 1;
 		}
 	}
@@ -92,6 +93,7 @@ uint8_t sw2_read(uint8_t is_long) {
 		sw2_flag = 1;
 		if(sw2_timer > \
 				(is_long ? LONG_PRESS_TIME : DEBOUNCE_TIME)) {
+			sw2_timer = 0;
 			return 1;
 		}
 	}
@@ -103,6 +105,7 @@ uint8_t sw3_read(uint8_t is_long) {
 		sw3_flag = 1;
 		if(sw3_timer > \
 				(is_long ? LONG_PRESS_TIME : DEBOUNCE_TIME)) {
+			sw3_timer = 0;
 			return 1;
 		}
 	}
