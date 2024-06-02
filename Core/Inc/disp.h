@@ -45,6 +45,7 @@ void disp_set(uint8_t disp_no, uint8_t val_idx);
 void disp_routine(uint8_t disp_no);
 void disp_alloff(void);
 void disp_no(uint16_t no);
+void disp_text(char* txt);
 void display_value(uint8_t dis_no, uint8_t val_idx);
 
 #endif /* INC_DISP_H_ */

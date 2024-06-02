@@ -134,6 +134,7 @@ typedef struct {
 
 sp sp_arr[SP_COUNT] = {{
 		.idx = PULSES_PER_REVOLUTION,
+		.name = "ppr",
 		.def = 1,
 		.step = 1,
 		.min = 1,
@@ -141,6 +142,7 @@ sp sp_arr[SP_COUNT] = {{
 		.val = 1
 	}, {
 		.idx = RANGE,
+		.name = "rng",
 		.def = 10000,
 		.step = 10,
 		.min = 10,
@@ -148,6 +150,7 @@ sp sp_arr[SP_COUNT] = {{
 		.val = 10000
 	}, {
 		.idx = REFRESH_RATE,
+		.name = "Hz",
 		.def = 5,
 		.step = 1,
 		.min = 1,
@@ -265,9 +268,8 @@ int main(void)
 		  /* update curr from eeprom */
 		  if(sp_idx_chgflag) {
 			  curr = &sp_arr[sp_idx];
-//			  disp_text(&curr->name, strlen(curr->name)); /* TODO fn to be created */
 			  if(sp_idx == SP_COUNT)
-				  disp_no(9); /* TODO Print exit */
+				  disp_text(curr->name); /* TODO fn to be created */
 			  else {
 				  disp_no(curr->idx + 10);
 			  }

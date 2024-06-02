@@ -239,6 +239,14 @@ void disp_alloff() {
 	set_dis_5_low();
 	set_dis_6_low();
 }
+void disp_clrall() {
+	char_idxs[0] = 10;
+	char_idxs[1] = 10;
+	char_idxs[2] = 10;
+	char_idxs[3] = 10;
+	char_idxs[4] = 10;
+	char_idxs[5] = 10;
+}
 void disp_no(uint16_t no) {
 	// Turn all displays off
 	uint8_t temp = 0;
@@ -261,3 +269,17 @@ void disp_no(uint16_t no) {
 	}
 }
 
+void disp_text(char* txt) {
+	char* p = txt;
+	uint8_t len = 0;
+	while(*p != '\0') {
+		len++;
+		p++;
+	}
+	p = txt;
+	disp_clrall();
+	for(size_t i = 0; *p != '\0'; i++) {
+		char_idxs[i + 6 - len] = (char)*p - 97 + 11;
+		p++;
+	}
+}
