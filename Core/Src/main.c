@@ -70,7 +70,7 @@ static void MX_TIM16_Init(void);
 static void MX_TIM1_Init(void);
 /* USER CODE BEGIN PFP */
 
-uint8_t sw1_flag, sw2_flag, sw3_flag;
+uint8_t sw1_flag, sw2_flag, sw3_flag, sw1_hold_flag;
 uint16_t sw1_timer, sw2_timer, sw3_timer;
 void sw_routine() {
 	sw1_timer = sw1_flag ? sw1_timer + 1 : 0;
@@ -78,15 +78,22 @@ void sw_routine() {
 	sw3_timer = sw3_flag ? sw3_timer + 1 : 0;
 }
 uint8_t sw1_read(uint8_t is_long) {
-	if(SW1_IN()) {
+	if(SW1_IN() && !sw1_hold_flag) {
 		sw1_flag = 1;
 		if(sw1_timer > \
 				(is_long ? LONG_PRESS_TIME : DEBOUNCE_TIME)) {
 			sw1_timer = 0;
+			if(is_long) sw1_hold_flag = 1;
 			return 1;
 		}
 	}
-	else sw1_flag = 0;
+	else if(SW1_IN()) {
+		sw1_hold_flag = 1;
+	}
+	else {
+		sw1_flag = 0;
+		sw1_hold_flag = 0;
+	}
 	return 0;
 }
 uint8_t sw2_read(uint8_t is_long) {
@@ -115,15 +122,6 @@ uint8_t sw3_read(uint8_t is_long) {
 }
 
 
-uint16_t ee_read(uint8_t idx) {
-	uint16_t data;
-	FEE_ReadData(idx + FEE_START_ADDRESS, &data, sizeof(uint16_t));
-	return data;
-
-}
-void ee_write(uint8_t idx, uint16_t data) {
-	FEE_WriteData(idx + FEE_START_ADDRESS, &data, sizeof(uint16_t));
-}
 
 uint8_t mode; /** 0: display, 1: prog, 2: set */
 uint8_t prg_idx; /** index for programming params */
@@ -162,7 +160,7 @@ sp sp_arr[SP_COUNT] = {{
 		.val = 10000
 	}, {
 		.idx = REFRESH_RATE,
-		.name = "Hz",
+		.name = "hz",
 		.def = 5,
 		.step = 1,
 		.min = 1,
@@ -171,6 +169,24 @@ sp sp_arr[SP_COUNT] = {{
 	}
 };
 
+uint16_t ee_read(uint8_t idx) {
+	uint16_t data;
+	FEE_ReadData(idx + FEE_START_ADDRESS, &data, sizeof(uint16_t));
+	return data;
+
+}
+void ee_write(uint8_t idx, uint16_t data) {
+	FEE_WriteData(idx + FEE_START_ADDRESS, &data, sizeof(uint16_t));
+}
+/**
+ * @brief write default values. To be called in init hex
+ */
+void ee_init() {
+	ee_write(0, sp_arr[0].def);
+	ee_write(1, sp_arr[1].def);
+	ee_write(2, sp_arr[2].def);
+	ee_write(3, sp_arr[3].def);
+}
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -255,6 +271,7 @@ int main(void)
   HAL_TIM_Base_Start_IT(&htim16);
   HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_1);
 
+//  ee_init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -264,83 +281,80 @@ int main(void)
   sp *curr;
   curr = &sp_arr[sp_idx]; /* TODO load from eeprom here */
 
+  disp_text("cntr");
   uint8_t sp_idx_chgflag = 1, sp_val_chgflag = 1;
-  uint16_t ee_temp = 1;
-  uint16_t prev_ee_temp = 0;
+  int32_t rpm_disp = -1;
 
   while (1)
   {
-	  ee_temp = ee_read(0);
-	  if(prev_ee_temp != ee_temp) {
-		  disp_no(ee_temp);
-		  prev_ee_temp = ee_temp;
+	  switch(mode) {
+	  case MODE_DISP:
+		  if(sw1_read(1)) {
+			 mode = MODE_PROG;
+			 sp_idx_chgflag = 1;
+		  }
+		  if(rpm != rpm_disp ) {
+			  disp_no(rpm);
+			  rpm_disp  = rpm;
+		  }
+		  /* TODO update rpm based on refresh rate */
+		  break;
+	  case MODE_PROG:
+		  if(sp_idx_chgflag) {
+			  curr = &sp_arr[sp_idx];
+//			  curr->val = ee_read(sp_idx);
+			  if(sp_idx == SP_COUNT)
+				  disp_text("exit");
+			  else {
+				  disp_text(curr->name);
+			  }
+			  sp_idx_chgflag = 0;
+		  }
+		  if(sw1_read(0)) {
+			  if(sp_idx == SP_COUNT) {
+				  sp_idx = 0; /* reset index */
+				  rpm_disp = -1;
+				  mode = MODE_DISP;
+			  } else {
+				  sp_val_chgflag = 1;
+				  mode = MODE_SET;
+			  }
+		  }
+		  if(sw2_read(0)) { /* up button */
+			 sp_idx = (sp_idx == SP_COUNT) ? 0 : sp_idx + 1;
+			 sp_idx_chgflag = 1;
+		  }
+		  if(sw3_read(0)) {/* down button */
+			 sp_idx = (sp_idx == 0) ? SP_COUNT : sp_idx - 1;
+			 sp_idx_chgflag = 1;
+		  }
+		  break;
+	  case MODE_SET:
+		  /* TODO display value */
+		  if(sp_val_chgflag) {
+			  disp_no(curr->val);
+			  sp_val_chgflag = 0;
+		  }
+		  if(sw1_read(0)) {
+			  /* on press, write val to eeprom */
+//			  ee_write(sp_idx, curr->val); /* TODO implement sp_save */
+			  sp_idx_chgflag = 1;
+			  mode = MODE_PROG;
+		  }
+		  if(sw2_read(0)) { /* up button */
+			 curr->val = curr->val >= curr->max ? \
+					 curr->min : curr->val + curr->step;
+			 sp_val_chgflag = 1;
+		  }
+		  if(sw3_read(0)) { /* down button */
+			 curr->val = curr->val <= curr->min ? \
+					 curr->max : curr->val - curr->step;
+			 sp_val_chgflag = 1;
+		  }
+		  break;
+	  default:
+		  mode = MODE_DISP;
 	  }
-
-
-//	  switch(mode) {
-//	  case MODE_DISP:
-//		  if(sw1_read(1)) {
-//			 mode = MODE_PROG;
-//			 sp_idx_chgflag = 1;
-//		  }
-//		  /* TODO dipslay rpm */
-//		  /* TODO update rpm based on refresh rate */
-//		  break;
-//	  case MODE_PROG:
-//		  /* update curr from eeprom */
-//		  if(sp_idx_chgflag) {
-//			  curr = &sp_arr[sp_idx];
-//			  if(sp_idx == SP_COUNT)
-//				  disp_text(curr->name); /* TODO fn to be created */
-//			  else {
-//				  disp_no(curr->idx + 10);
-//			  }
-//			  sp_idx_chgflag = 0;
-//		  }
-//		  if(sw1_read(0)) {
-//			  if(sp_idx == SP_COUNT) {
-//				  sp_idx = 0; /* reset index */
-//				  mode = MODE_DISP;
-//			  } else {
-//				  sp_val_chgflag = 1;
-//				  mode = MODE_SET;
-//			  }
-//		  }
-//		  if(sw2_read(0)) { /* up button */
-//			 sp_idx = (sp_idx == SP_COUNT) ? 0 : sp_idx + 1;
-//			 sp_idx_chgflag = 1;
-//		  }
-//		  if(sw3_read(0)) {/* down button */
-//			 sp_idx = (sp_idx == 0) ? SP_COUNT : sp_idx - 1;
-//			 sp_idx_chgflag = 1;
-//		  }
-//		  break;
-//	  case MODE_SET:
-//		  /* TODO display value */
-//		  if(sp_val_chgflag) {
-//			  disp_no(curr->val);
-//			  sp_val_chgflag = 0;
-//		  }
-//		  if(sw1_read(0)) {
-//			  /* on press, write val to eeprom */
-////			  sp_save(sp_idx, curr->val); /* TODO implement sp_save */
-//			  sp_idx_chgflag = 1;
-//			  mode = MODE_PROG;
-//		  }
-//		  if(sw2_read(0)) { /* up button */
-//			 curr->val = curr->val >= curr->max ? \
-//					 curr->min : curr->val + curr->step;
-//			 sp_val_chgflag = 1;
-//		  }
-//		  if(sw3_read(0)) { /* down button */
-//			 curr->val = curr->val <= curr->min ? \
-//					 curr->max : curr->val - curr->step;
-//			 sp_val_chgflag = 1;
-//		  }
-//		  break;
-//	  default:
-//		  mode = MODE_DISP;
-//	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
