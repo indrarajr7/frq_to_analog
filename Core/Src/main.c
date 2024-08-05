@@ -187,6 +187,17 @@ void ee_init() {
 	ee_write(2, sp_arr[2].def);
 	ee_write(3, sp_arr[3].def);
 }
+/* DAC */
+uint8_t dac_set_val(float volt) {
+    uint16_t value = ((4095 * volt) / 3.3) ;
+    if(value > 4095) value = 4095; /* max it out */
+    uint8_t frame[2];
+    frame[0] = (value >> 8) & 0x0FF;
+    frame[1] = value & 0x0FF;
+    uint8_t res = HAL_I2C_Master_Transmit(&hi2c1, 0xC2, frame, 2, HAL_MAX_DELAY);
+    return res;
+}
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -424,7 +435,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x0000020B;
+  hi2c1.Init.Timing = 0x00201D2B;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
