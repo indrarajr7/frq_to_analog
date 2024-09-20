@@ -35,7 +35,7 @@
 /* USER CODE BEGIN PD */
 #define DAC_CONV_FACTOR		((float)4096/20000)
 #define CLK_FREQ			(48000000UL)
-#define DEBOUNCE_TIME		(130)
+#define DEBOUNCE_TIME		(150)
 #define LONG_PRESS_TIME		(3000)
 
 #define MODE_DISP			0
@@ -181,15 +181,28 @@ void ee_write(uint8_t idx, uint16_t data) {
 /**
  * @brief write default values. To be called in init hex
  */
+uint16_t ee_array[4] = { 0, 0, 0, 0 };
 void ee_init() {
-	ee_write(0, sp_arr[0].def);
-	ee_write(1, sp_arr[1].def);
-	ee_write(2, sp_arr[2].def);
-	ee_write(3, sp_arr[3].def);
+//	ee_write(0, sp_arr[0].def);
+//	ee_write(1, sp_arr[1].def);
+//	ee_write(2, sp_arr[2].def);
+//	ee_write(3, sp_arr[3].def);
+	sp_arr[0].val = ee_read(0);
+	sp_arr[1].val = ee_read(1);
+	sp_arr[2].val = ee_read(2);
 }
 /* DAC */
 uint8_t dac_set_val(float volt) {
-    uint16_t value = ((4095 * volt) / 3.3) ;
+    uint16_t value = ((4095 * volt) / 3.3);
+    if(value > 4095) value = 4095; /* max it out */
+    uint8_t frame[2];
+    frame[0] = (value >> 8) & 0x0FF;
+    frame[1] = value & 0x0FF;
+    uint8_t res = HAL_I2C_Master_Transmit(&hi2c1, 0xC2, frame, 2, HAL_MAX_DELAY);
+    return res;
+}
+uint8_t dac_set_with_range(uint32_t val, uint32_t range) {
+    uint16_t value = ((4095 * val) / range);
     if(value > 4095) value = 4095; /* max it out */
     uint8_t frame[2];
     frame[0] = (value >> 8) & 0x0FF;
@@ -218,6 +231,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef* htim) {
 			}
 			pps = (1 / (float)(intvl * (htim->Instance->PSC / (float)CLK_FREQ)));
 			rpm = pps * 60;
+			rpm = rpm * sp_arr[PULSES_PER_REVOLUTION].val;
 			c1_flag = 0;
 		}
 		else {
@@ -253,6 +267,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim) {
   */
 int main(void)
 {
+
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
@@ -282,7 +297,7 @@ int main(void)
   HAL_TIM_Base_Start_IT(&htim16);
   HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_1);
 
-//  ee_init();
+//  ee_init(); /* eeprom emulation read valeus */
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -293,20 +308,24 @@ int main(void)
   curr = &sp_arr[sp_idx]; /* TODO load from eeprom here */
 
   disp_text("cntr");
+  HAL_Delay(2000);
+  dac_set_val(0); /* set analog out to 0 */
   uint8_t sp_idx_chgflag = 1, sp_val_chgflag = 1;
   int32_t rpm_disp = -1;
 
   while (1)
   {
+	  dac_set_with_range(5000, sp_arr[RANGE].val);
 	  switch(mode) {
 	  case MODE_DISP:
 		  if(sw1_read(1)) {
 			 mode = MODE_PROG;
 			 sp_idx_chgflag = 1;
 		  }
-		  if(rpm != rpm_disp ) {
+		  if(rpm != rpm_disp) {
+			  /* todo add refresh rate checker */
 			  disp_no(rpm);
-			  rpm_disp  = rpm;
+			  rpm_disp = rpm;
 		  }
 		  /* TODO update rpm based on refresh rate */
 		  break;
