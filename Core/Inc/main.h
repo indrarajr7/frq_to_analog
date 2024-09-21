@@ -53,46 +53,30 @@ extern "C" {
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
-
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define DISP_A_Pin GPIO_PIN_0
-#define DISP_A_GPIO_Port GPIOA
-#define DISP_B_Pin GPIO_PIN_1
-#define DISP_B_GPIO_Port GPIOA
-#define DISP_C_Pin GPIO_PIN_2
-#define DISP_C_GPIO_Port GPIOA
-#define DISP_D_Pin GPIO_PIN_3
-#define DISP_D_GPIO_Port GPIOA
-#define DISP_E_Pin GPIO_PIN_4
-#define DISP_E_GPIO_Port GPIOA
-#define DISP_F_Pin GPIO_PIN_5
-#define DISP_F_GPIO_Port GPIOA
-#define DISP_G_Pin GPIO_PIN_6
-#define DISP_G_GPIO_Port GPIOA
-#define DISP_DP_Pin GPIO_PIN_7
-#define DISP_DP_GPIO_Port GPIOA
-#define SW_2_IN_Pin GPIO_PIN_0
-#define SW_2_IN_GPIO_Port GPIOB
-#define SW_1_IN_Pin GPIO_PIN_1
-#define SW_1_IN_GPIO_Port GPIOB
-#define SW_3_IN_Pin GPIO_PIN_12
-#define SW_3_IN_GPIO_Port GPIOA
-#define DISP_6_Pin GPIO_PIN_15
-#define DISP_6_GPIO_Port GPIOA
-#define DISP_5_Pin GPIO_PIN_3
-#define DISP_5_GPIO_Port GPIOB
-#define DISP_4_Pin GPIO_PIN_4
-#define DISP_4_GPIO_Port GPIOB
-#define DISP_3_Pin GPIO_PIN_5
-#define DISP_3_GPIO_Port GPIOB
-#define DISP_2_Pin GPIO_PIN_6
-#define DISP_2_GPIO_Port GPIOB
-#define DISP_1_Pin GPIO_PIN_7
-#define DISP_1_GPIO_Port GPIOB
+#define CUSTOM_FREQ_Pin GPIO_PIN_0
+#define CUSTOM_FREQ_GPIO_Port GPIOA
+#define _500_HZ_Pin GPIO_PIN_1
+#define _500_HZ_GPIO_Port GPIOA
+#define _1000_HZ_Pin GPIO_PIN_2
+#define _1000_HZ_GPIO_Port GPIOA
+#define _1500_HZ_Pin GPIO_PIN_3
+#define _1500_HZ_GPIO_Port GPIOA
+#define _2000_HZ_Pin GPIO_PIN_4
+#define _2000_HZ_GPIO_Port GPIOA
+#define _2500_HZ_Pin GPIO_PIN_5
+#define _2500_HZ_GPIO_Port GPIOA
+#define _5000_HZ_Pin GPIO_PIN_6
+#define _5000_HZ_GPIO_Port GPIOA
+#define DAC_Pin GPIO_PIN_11
+#define DAC_GPIO_Port GPIOA
+#define INP_SIG_LED_Pin GPIO_PIN_7
+#define INP_SIG_LED_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
+void freq_map() ;
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

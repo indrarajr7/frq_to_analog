@@ -21,9 +21,6 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "disp.h"
-#include "FEE.h"
-
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -35,20 +32,12 @@
 /* USER CODE BEGIN PD */
 #define DAC_CONV_FACTOR		((float)4096/20000)
 #define CLK_FREQ			(48000000UL)
-#define DEBOUNCE_TIME		(150)
-#define LONG_PRESS_TIME		(3000)
-
-#define MODE_DISP			0
-#define MODE_PROG			1
-#define MODE_SET			2
-#define SP_COUNT			3
+#define REF_VLT				(3.30F)
+#define BLINK				(10U)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-#define SW1_IN()			(HAL_GPIO_ReadPin(SW_1_IN_GPIO_Port, SW_1_IN_Pin))
-#define SW2_IN()			(HAL_GPIO_ReadPin(SW_2_IN_GPIO_Port, SW_2_IN_Pin))
-#define SW3_IN()			(HAL_GPIO_ReadPin(SW_3_IN_GPIO_Port, SW_3_IN_Pin))
 
 /* USER CODE END PM */
 
@@ -66,131 +55,12 @@ TIM_HandleTypeDef htim16;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_I2C1_Init(void);
-static void MX_TIM16_Init(void);
+//static void MX_TIM16_Init(void);
 static void MX_TIM1_Init(void);
 /* USER CODE BEGIN PFP */
-
-uint8_t sw1_flag, sw2_flag, sw3_flag, sw1_hold_flag;
-uint16_t sw1_timer, sw2_timer, sw3_timer;
-void sw_routine() {
-	sw1_timer = sw1_flag ? sw1_timer + 1 : 0;
-	sw2_timer = sw2_flag ? sw2_timer + 1 : 0;
-	sw3_timer = sw3_flag ? sw3_timer + 1 : 0;
-}
-uint8_t sw1_read(uint8_t is_long) {
-	if(SW1_IN() && !sw1_hold_flag) {
-		sw1_flag = 1;
-		if(sw1_timer > \
-				(is_long ? LONG_PRESS_TIME : DEBOUNCE_TIME)) {
-			sw1_timer = 0;
-			if(is_long) sw1_hold_flag = 1;
-			return 1;
-		}
-	}
-	else if(SW1_IN()) {
-		sw1_hold_flag = 1;
-	}
-	else {
-		sw1_flag = 0;
-		sw1_hold_flag = 0;
-	}
-	return 0;
-}
-uint8_t sw2_read(uint8_t is_long) {
-	if(SW2_IN()) {
-		sw2_flag = 1;
-		if(sw2_timer > \
-				(is_long ? LONG_PRESS_TIME : DEBOUNCE_TIME)) {
-			sw2_timer = 0;
-			return 1;
-		}
-	}
-	else sw2_flag = 0;
-	return 0;
-}
-uint8_t sw3_read(uint8_t is_long) {
-	if(SW3_IN()) {
-		sw3_flag = 1;
-		if(sw3_timer > \
-				(is_long ? LONG_PRESS_TIME : DEBOUNCE_TIME)) {
-			sw3_timer = 0;
-			return 1;
-		}
-	}
-	else sw3_flag = 0;
-	return 0;
-}
-
-
-
-uint8_t mode; /** 0: display, 1: prog, 2: set */
-uint8_t prg_idx; /** index for programming params */
-
-typedef enum {
-	PULSES_PER_REVOLUTION,
-	RANGE,
-	REFRESH_RATE
-} sp_id;
-
-typedef struct {
-	uint8_t idx;
-	char name[10];
-	uint16_t def;
-	uint8_t step;
-	uint16_t min;
-	uint16_t max;
-	uint16_t val;
-} sp;
-
-sp sp_arr[SP_COUNT] = {{
-		.idx = PULSES_PER_REVOLUTION,
-		.name = "ppr",
-		.def = 1,
-		.step = 1,
-		.min = 1,
-		.max = 5,
-		.val = 1
-	}, {
-		.idx = RANGE,
-		.name = "rng",
-		.def = 10000,
-		.step = 10,
-		.min = 10,
-		.max = 20000,
-		.val = 10000
-	}, {
-		.idx = REFRESH_RATE,
-		.name = "hz",
-		.def = 5,
-		.step = 1,
-		.min = 1,
-		.max = 20000,
-		.val = 5
-	}
-};
-
-uint16_t ee_read(uint8_t idx) {
-	uint16_t data;
-	FEE_ReadData(idx + FEE_START_ADDRESS, &data, sizeof(uint16_t));
-	return data;
-
-}
-void ee_write(uint8_t idx, uint16_t data) {
-	FEE_WriteData(idx + FEE_START_ADDRESS, &data, sizeof(uint16_t));
-}
 /**
  * @brief write default values. To be called in init hex
  */
-uint16_t ee_array[4] = { 0, 0, 0, 0 };
-void ee_init() {
-//	ee_write(0, sp_arr[0].def);
-//	ee_write(1, sp_arr[1].def);
-//	ee_write(2, sp_arr[2].def);
-//	ee_write(3, sp_arr[3].def);
-	sp_arr[0].val = ee_read(0);
-	sp_arr[1].val = ee_read(1);
-	sp_arr[2].val = ee_read(2);
-}
 /* DAC */
 uint8_t dac_set_val(float volt) {
     uint16_t value = ((4095 * volt) / 3.3);
@@ -205,6 +75,7 @@ uint8_t dac_set_with_range(uint32_t val, uint32_t range) {
     uint16_t value = ((4095 * val) / range);
     if(value > 4095) value = 4095; /* max it out */
     uint8_t frame[2];
+
     frame[0] = (value >> 8) & 0x0FF;
     frame[1] = value & 0x0FF;
     uint8_t res = HAL_I2C_Master_Transmit(&hi2c1, 0xC2, frame, 2, HAL_MAX_DELAY);
@@ -216,6 +87,7 @@ uint8_t dac_set_with_range(uint32_t val, uint32_t range) {
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 volatile uint32_t pps, rpm;
+uint8_t led_flag=0 ;
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef* htim) {
 	static uint16_t c1 = 0, c2 = 0, intvl = 0;
 	static uint8_t c1_flag;
@@ -229,9 +101,9 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef* htim) {
 			else {
 				intvl = c2 + (65536 - c1);
 			}
-			pps = (1 / (float)(intvl * (htim->Instance->PSC / (float)CLK_FREQ)));
-			rpm = pps * 60;
-			rpm = rpm * sp_arr[PULSES_PER_REVOLUTION].val;
+			pps = (1 / (float)(intvl * (htim->Instance->PSC /(float)CLK_FREQ)));
+			//rpm = pps * 60;
+			//rpm = rpm * sp_arr[PULSES_PER_REVOLUTION].val;
 			c1_flag = 0;
 		}
 		else {
@@ -240,21 +112,42 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef* htim) {
 		}
 	}
 }
-/* ms timer */
-uint32_t sec;
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim) {
-	static uint8_t disp_idx = 0;
-	if(htim->Instance == TIM16) {
-		if(sec != 0 && sec % 4 == 0) { /* every 4 ms */
-		// Do stuff
-			display_value(disp_idx + 1, char_idxs[disp_idx]);
-			disp_idx = (disp_idx == 5) ? 1 - 1 : disp_idx + 1;
+void freq_map() {
+		if(HAL_GPIO_ReadPin(_500_HZ_GPIO_Port,_500_HZ_Pin)){
+			float volt=((REF_VLT * pps)/500) ;
+			dac_set_val(volt) ;
+			led_flag++ ;
 		}
-	}
-	/* TODO ppm, rps clear somewhere else */
-	if(sec % 100 == 0) pps = 0, rpm = 0; /* change in other func */
-	sec = (sec >= 1000) ? 0 : sec + 1;
-	sw_routine();
+		else if (HAL_GPIO_ReadPin(_1000_HZ_GPIO_Port, _1000_HZ_Pin)){
+			float volt=((REF_VLT * pps)/1000) ;
+			dac_set_val(volt) ;
+			led_flag++ ;
+
+		}
+		else if (HAL_GPIO_ReadPin(_1500_HZ_GPIO_Port, _1500_HZ_Pin)){
+			float volt=((REF_VLT * pps)/1500) ;
+			dac_set_val(volt) ;
+			led_flag++ ;
+
+		}
+		else if (HAL_GPIO_ReadPin(_2000_HZ_GPIO_Port, _2000_HZ_Pin)){
+			float volt=((REF_VLT * pps)/2000) ;
+			dac_set_val(volt) ;
+			led_flag++ ;
+
+		}
+		else if (HAL_GPIO_ReadPin(_5000_HZ_GPIO_Port, _5000_HZ_Pin)){
+			float volt=((REF_VLT * pps)/5000) ;
+			dac_set_val(volt) ;
+			led_flag++ ;
+
+		}
+		else if (HAL_GPIO_ReadPin(CUSTOM_FREQ_GPIO_Port, CUSTOM_FREQ_Pin)){
+			float volt=((REF_VLT * pps)/100) ; /// CHANGE THE VALU OF 100 FOR VARABLE FERQUENCY
+			dac_set_val(volt) ;
+			led_flag++ ;
+
+		}
 
 }
 
@@ -291,100 +184,29 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_I2C1_Init();
-  MX_TIM16_Init();
+ // MX_TIM16_Init();
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start_IT(&htim16);
   HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_1);
 
-//  ee_init(); /* eeprom emulation read valeus */
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  mode = 0;
-  uint8_t sp_idx = 0;
-  sp *curr;
-  curr = &sp_arr[sp_idx]; /* TODO load from eeprom here */
-
-  disp_text("cntr");
   HAL_Delay(2000);
   dac_set_val(0); /* set analog out to 0 */
-  uint8_t sp_idx_chgflag = 1, sp_val_chgflag = 1;
-  int32_t rpm_disp = -1;
+  //int32_t rpm_disp = -1;
 
   while (1)
-  {
-	  dac_set_with_range(5000, sp_arr[RANGE].val);
-	  switch(mode) {
-	  case MODE_DISP:
-		  if(sw1_read(1)) {
-			 mode = MODE_PROG;
-			 sp_idx_chgflag = 1;
-		  }
-		  if(rpm != rpm_disp) {
-			  /* todo add refresh rate checker */
-			  disp_no(rpm);
-			  rpm_disp = rpm;
-		  }
-		  /* TODO update rpm based on refresh rate */
-		  break;
-	  case MODE_PROG:
-		  if(sp_idx_chgflag) {
-			  curr = &sp_arr[sp_idx];
-//			  curr->val = ee_read(sp_idx);
-			  if(sp_idx == SP_COUNT)
-				  disp_text("exit");
-			  else {
-				  disp_text(curr->name);
-			  }
-			  sp_idx_chgflag = 0;
-		  }
-		  if(sw1_read(0)) {
-			  if(sp_idx == SP_COUNT) {
-				  sp_idx = 0; /* reset index */
-				  rpm_disp = -1;
-				  mode = MODE_DISP;
-			  } else {
-				  sp_val_chgflag = 1;
-				  mode = MODE_SET;
-			  }
-		  }
-		  if(sw2_read(0)) { /* up button */
-			 sp_idx = (sp_idx == SP_COUNT) ? 0 : sp_idx + 1;
-			 sp_idx_chgflag = 1;
-		  }
-		  if(sw3_read(0)) {/* down button */
-			 sp_idx = (sp_idx == 0) ? SP_COUNT : sp_idx - 1;
-			 sp_idx_chgflag = 1;
-		  }
-		  break;
-	  case MODE_SET:
-		  /* TODO display value */
-		  if(sp_val_chgflag) {
-			  disp_no(curr->val);
-			  sp_val_chgflag = 0;
-		  }
-		  if(sw1_read(0)) {
-			  /* on press, write val to eeprom */
-//			  ee_write(sp_idx, curr->val); /* TODO implement sp_save */
-			  sp_idx_chgflag = 1;
-			  mode = MODE_PROG;
-		  }
-		  if(sw2_read(0)) { /* up button */
-			 curr->val = curr->val >= curr->max ? \
-					 curr->min : curr->val + curr->step;
-			 sp_val_chgflag = 1;
-		  }
-		  if(sw3_read(0)) { /* down button */
-			 curr->val = curr->val <= curr->min ? \
-					 curr->max : curr->val - curr->step;
-			 sp_val_chgflag = 1;
-		  }
-		  break;
-	  default:
-		  mode = MODE_DISP;
-	  }
+  {		 freq_map() ;
+  	  	 if(led_flag > BLINK) {
+  	  		 HAL_GPIO_WritePin(INP_SIG_LED_GPIO_Port, INP_SIG_LED_Pin,RESET) ;
+  	  		 led_flag=0 ;
+  	  	 }
+  	  	 else  HAL_GPIO_WritePin(INP_SIG_LED_GPIO_Port, INP_SIG_LED_Pin,SET) ;
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -584,45 +406,32 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, DISP_A_Pin|DISP_B_Pin|DISP_C_Pin|DISP_D_Pin
-                          |DISP_E_Pin|DISP_F_Pin|DISP_G_Pin|DISP_DP_Pin
-                          |DISP_6_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(DAC_GPIO_Port, DAC_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, DISP_5_Pin|DISP_4_Pin|DISP_3_Pin|DISP_2_Pin
-                          |DISP_1_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(INP_SIG_LED_GPIO_Port, INP_SIG_LED_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : DISP_A_Pin DISP_B_Pin DISP_C_Pin DISP_D_Pin
-                           DISP_E_Pin DISP_F_Pin DISP_G_Pin DISP_DP_Pin
-                           DISP_6_Pin */
-  GPIO_InitStruct.Pin = DISP_A_Pin|DISP_B_Pin|DISP_C_Pin|DISP_D_Pin
-                          |DISP_E_Pin|DISP_F_Pin|DISP_G_Pin|DISP_DP_Pin
-                          |DISP_6_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  /*Configure GPIO pins : CUSTOM_FREQ_Pin _500_HZ_Pin _1000_HZ_Pin _1500_HZ_Pin
+                           _2000_HZ_Pin _2500_HZ_Pin _5000_HZ_Pin */
+  GPIO_InitStruct.Pin = CUSTOM_FREQ_Pin|_500_HZ_Pin|_1000_HZ_Pin|_1500_HZ_Pin
+                          |_2000_HZ_Pin|_2500_HZ_Pin|_5000_HZ_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : SW_2_IN_Pin SW_1_IN_Pin */
-  GPIO_InitStruct.Pin = SW_2_IN_Pin|SW_1_IN_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : SW_3_IN_Pin */
-  GPIO_InitStruct.Pin = SW_3_IN_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(SW_3_IN_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : DISP_5_Pin DISP_4_Pin DISP_3_Pin DISP_2_Pin
-                           DISP_1_Pin */
-  GPIO_InitStruct.Pin = DISP_5_Pin|DISP_4_Pin|DISP_3_Pin|DISP_2_Pin
-                          |DISP_1_Pin;
+  /*Configure GPIO pin : DAC_Pin */
+  GPIO_InitStruct.Pin = DAC_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+  HAL_GPIO_Init(DAC_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : INP_SIG_LED_Pin */
+  GPIO_InitStruct.Pin = INP_SIG_LED_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(INP_SIG_LED_GPIO_Port, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
