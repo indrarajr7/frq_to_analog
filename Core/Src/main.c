@@ -33,7 +33,7 @@
 #define DAC_CONV_FACTOR		((float)4096/20000)
 #define CLK_FREQ			(48000000UL)
 #define REF_VLT				(3.30F)
-#define BLINK				(10U)
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -78,7 +78,7 @@ uint8_t dac_set_with_range(uint32_t val, uint32_t range) {
 
     frame[0] = (value >> 8) & 0x0FF;
     frame[1] = value & 0x0FF;
-    uint8_t res = HAL_I2C_Master_Transmit(&hi2c1, 0xC2, frame, 2, HAL_MAX_DELAY);
+    uint8_t res = HAL_I2C_Master_Transmit(&hi2c1, 0xC2 , frame, 2, HAL_MAX_DELAY);
     return res;
 }
 
@@ -87,10 +87,12 @@ uint8_t dac_set_with_range(uint32_t val, uint32_t range) {
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 volatile uint32_t pps, rpm;
-uint8_t led_flag=0 ;
+volatile uint8_t led_flag=0 ;
+int const blink =1000 ;
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef* htim) {
 	static uint16_t c1 = 0, c2 = 0, intvl = 0;
 	static uint8_t c1_flag;
+	led_flag=1 ;
 	if(htim->Instance == TIM1) {
 		if(c1_flag) {
 			c2 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1); /* Rising edge 2 */
@@ -102,8 +104,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef* htim) {
 				intvl = c2 + (65536 - c1);
 			}
 			pps = (1 / (float)(intvl * (htim->Instance->PSC /(float)CLK_FREQ)));
-			//rpm = pps * 60;
-			//rpm = rpm * sp_arr[PULSES_PER_REVOLUTION].val;
+
 			c1_flag = 0;
 		}
 		else {
@@ -112,40 +113,50 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef* htim) {
 		}
 	}
 }
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
+	if(led_flag==1){
+	HAL_GPIO_TogglePin(INP_SIG_LED_GPIO_Port, INP_SIG_LED_Pin);
+	led_flag=0 ;
+	}
+	else if(led_flag==0){
+		HAL_GPIO_WritePin(INP_SIG_LED_GPIO_Port, INP_SIG_LED_Pin,RESET);
+		pps=0 ;
+	}
+}
 void freq_map() {
 		if(!HAL_GPIO_ReadPin(_500_HZ_GPIO_Port,_500_HZ_Pin)){
 			float volt=((REF_VLT * pps)/500) ;
 			dac_set_val(volt) ;
-			led_flag++ ;
+
 		}
 		else if (!HAL_GPIO_ReadPin(_1000_HZ_GPIO_Port, _1000_HZ_Pin)){
 			float volt=((REF_VLT * pps)/1000) ;
 			dac_set_val(volt) ;
-			led_flag++ ;
+			pps=0;
 
 		}
 		else if (!HAL_GPIO_ReadPin(_1500_HZ_GPIO_Port, _1500_HZ_Pin)){
 			float volt=((REF_VLT * pps)/1500) ;
 			dac_set_val(volt) ;
-			led_flag++ ;
+			pps=0;
 
 		}
 		else if (!HAL_GPIO_ReadPin(_2000_HZ_GPIO_Port, _2000_HZ_Pin)){
 			float volt=((REF_VLT * pps)/2000) ;
 			dac_set_val(volt) ;
-			led_flag++ ;
+			pps=0;
 
 		}
 		else if (!HAL_GPIO_ReadPin(_5000_HZ_GPIO_Port, _5000_HZ_Pin)){
 			float volt=((REF_VLT * pps)/5000) ;
 			dac_set_val(volt) ;
-			led_flag++ ;
+			pps=0;
 
 		}
 		else if (!HAL_GPIO_ReadPin(CUSTOM_FREQ_GPIO_Port, CUSTOM_FREQ_Pin)){
 			float volt=((REF_VLT * pps)/100) ; /// CHANGE THE VALU OF 100 FOR VARABLE FERQUENCY
 			dac_set_val(volt) ;
-			led_flag++ ;
+			pps=0;
 
 		}
 
@@ -195,23 +206,23 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  HAL_Delay(2000);
+ // HAL_Delay(2000);
   HAL_GPIO_WritePin(DAC_GPIO_Port,DAC_Pin, SET) ;
   dac_set_val(0); /* set analog out to 0 */
-  HAL_Delay(5000);
+ // HAL_Delay(5000);
   //int32_t rpm_disp = -1;
-  dac_set_val(3.3);
-  HAL_Delay(5000);
+  //dac_set_val(3.3);
+  uint8_t frame[2];
+  frame[0]=0b00001111;
+  frame[1]=0b11111111;
+  HAL_I2C_Master_Transmit(&hi2c1, 0xC2 , frame, 2, HAL_MAX_DELAY);
+  //HAL_Delay(5000);
   dac_set_val(2.0);
-  HAL_Delay(5000);
+  dac_set_with_range(1.2 , 1.2);
+  //HAL_Delay(5000);
 
   while (1)
   {		 freq_map() ;
-  	  	 if(led_flag > BLINK) {
-  	  		 HAL_GPIO_WritePin(INP_SIG_LED_GPIO_Port, INP_SIG_LED_Pin,RESET) ;
-  	  		 led_flag=0 ;
-  	  	 }
-  	  	 else  HAL_GPIO_WritePin(INP_SIG_LED_GPIO_Port, INP_SIG_LED_Pin,SET) ;
 
     /* USER CODE END WHILE */
 
@@ -281,7 +292,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x00201D2B;
+  hi2c1.Init.Timing = 0x0010020A;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -378,9 +389,9 @@ static void MX_TIM16_Init(void)
 
   /* USER CODE END TIM16_Init 1 */
   htim16.Instance = TIM16;
-  htim16.Init.Prescaler = 48;
+  htim16.Init.Prescaler = 47999;
   htim16.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim16.Init.Period = 1000;
+  htim16.Init.Period = 999;
   htim16.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim16.Init.RepetitionCounter = 0;
   htim16.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
