@@ -55,7 +55,7 @@ TIM_HandleTypeDef htim16;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_I2C1_Init(void);
-//static void MX_TIM16_Init(void);
+static void MX_TIM16_Init(void);
 static void MX_TIM1_Init(void);
 /* USER CODE BEGIN PFP */
 /**
@@ -113,36 +113,36 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef* htim) {
 	}
 }
 void freq_map() {
-		if(HAL_GPIO_ReadPin(_500_HZ_GPIO_Port,_500_HZ_Pin)){
+		if(!HAL_GPIO_ReadPin(_500_HZ_GPIO_Port,_500_HZ_Pin)){
 			float volt=((REF_VLT * pps)/500) ;
 			dac_set_val(volt) ;
 			led_flag++ ;
 		}
-		else if (HAL_GPIO_ReadPin(_1000_HZ_GPIO_Port, _1000_HZ_Pin)){
+		else if (!HAL_GPIO_ReadPin(_1000_HZ_GPIO_Port, _1000_HZ_Pin)){
 			float volt=((REF_VLT * pps)/1000) ;
 			dac_set_val(volt) ;
 			led_flag++ ;
 
 		}
-		else if (HAL_GPIO_ReadPin(_1500_HZ_GPIO_Port, _1500_HZ_Pin)){
+		else if (!HAL_GPIO_ReadPin(_1500_HZ_GPIO_Port, _1500_HZ_Pin)){
 			float volt=((REF_VLT * pps)/1500) ;
 			dac_set_val(volt) ;
 			led_flag++ ;
 
 		}
-		else if (HAL_GPIO_ReadPin(_2000_HZ_GPIO_Port, _2000_HZ_Pin)){
+		else if (!HAL_GPIO_ReadPin(_2000_HZ_GPIO_Port, _2000_HZ_Pin)){
 			float volt=((REF_VLT * pps)/2000) ;
 			dac_set_val(volt) ;
 			led_flag++ ;
 
 		}
-		else if (HAL_GPIO_ReadPin(_5000_HZ_GPIO_Port, _5000_HZ_Pin)){
+		else if (!HAL_GPIO_ReadPin(_5000_HZ_GPIO_Port, _5000_HZ_Pin)){
 			float volt=((REF_VLT * pps)/5000) ;
 			dac_set_val(volt) ;
 			led_flag++ ;
 
 		}
-		else if (HAL_GPIO_ReadPin(CUSTOM_FREQ_GPIO_Port, CUSTOM_FREQ_Pin)){
+		else if (!HAL_GPIO_ReadPin(CUSTOM_FREQ_GPIO_Port, CUSTOM_FREQ_Pin)){
 			float volt=((REF_VLT * pps)/100) ; /// CHANGE THE VALU OF 100 FOR VARABLE FERQUENCY
 			dac_set_val(volt) ;
 			led_flag++ ;
@@ -184,7 +184,7 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_I2C1_Init();
- // MX_TIM16_Init();
+  MX_TIM16_Init();
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start_IT(&htim16);
@@ -196,8 +196,14 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   HAL_Delay(2000);
+  HAL_GPIO_WritePin(DAC_GPIO_Port,DAC_Pin, SET) ;
   dac_set_val(0); /* set analog out to 0 */
+  HAL_Delay(5000);
   //int32_t rpm_disp = -1;
+  dac_set_val(3.3);
+  HAL_Delay(5000);
+  dac_set_val(2.0);
+  HAL_Delay(5000);
 
   while (1)
   {		 freq_map() ;
@@ -227,13 +233,12 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSE;
-  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL6;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
+  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL12;
   RCC_OscInitStruct.PLL.PREDIV = RCC_PREDIV_DIV1;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
@@ -401,7 +406,6 @@ static void MX_GPIO_Init(void)
 /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
