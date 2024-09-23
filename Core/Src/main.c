@@ -114,9 +114,13 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef* htim) {
 	}
 }
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
-	if(led_flag==1){
+	if(led_flag==2){
 	HAL_GPIO_TogglePin(INP_SIG_LED_GPIO_Port, INP_SIG_LED_Pin);
 	led_flag=0 ;
+	}
+	else if(led_flag==1){
+		HAL_GPIO_WritePin(INP_SIG_LED_GPIO_Port, INP_SIG_LED_Pin,SET);
+		led_flag=0 ;
 	}
 	else if(led_flag==0){
 		HAL_GPIO_WritePin(INP_SIG_LED_GPIO_Port, INP_SIG_LED_Pin,RESET);
@@ -125,9 +129,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 }
 void freq_map() {
 		if(!HAL_GPIO_ReadPin(_500_HZ_GPIO_Port,_500_HZ_Pin)){
+			if(led_flag==1) led_flag=2 ;
 			if(pps > 500){
 
 				dac_set_val(3.3) ;
+
 			}
 			else{
 				float volt=((REF_VLT * pps)/500) ;
@@ -136,6 +142,7 @@ void freq_map() {
 
 		}
 		else if (!HAL_GPIO_ReadPin(_1000_HZ_GPIO_Port, _1000_HZ_Pin)){
+			if(led_flag==1) led_flag=2 ;
 			if(pps > 1000){
 
 				dac_set_val(3.3) ;
@@ -147,6 +154,7 @@ void freq_map() {
 
 		}
 		else if (!HAL_GPIO_ReadPin(_1500_HZ_GPIO_Port, _1500_HZ_Pin)){
+			if(led_flag==1) led_flag=2 ;
 			if(pps > 1500){
 
 				dac_set_val(3.3) ;
@@ -159,6 +167,7 @@ void freq_map() {
 
 		}
 		else if (!HAL_GPIO_ReadPin(_2000_HZ_GPIO_Port, _2000_HZ_Pin)){
+			if(led_flag==1) led_flag=2 ;
 			if(pps > 2000){
 
 				dac_set_val(3.3) ;
@@ -169,7 +178,20 @@ void freq_map() {
 			}
 
 		}
+		else if (!HAL_GPIO_ReadPin(_2500_HZ_GPIO_Port, _2500_HZ_Pin)){
+			if(led_flag==1) led_flag=2 ;
+			if(pps > 2500){
+
+				dac_set_val(3.3) ;
+			}
+			else{
+				float volt=((REF_VLT * pps)/2500) ;
+				dac_set_val(volt) ;
+			}
+
+		}
 		else if (!HAL_GPIO_ReadPin(_5000_HZ_GPIO_Port, _5000_HZ_Pin)){
+			if(led_flag==1) led_flag=2 ;
 			if(pps > 5000){
 
 				dac_set_val(3.3) ;
@@ -181,12 +203,18 @@ void freq_map() {
 
 		}
 		else if (!HAL_GPIO_ReadPin(CUSTOM_FREQ_GPIO_Port, CUSTOM_FREQ_Pin)){
-			float volt=((REF_VLT * pps)/100) ; /// CHANGE THE VALU OF 100 FOR VARABLE FERQUENCY
-			dac_set_val(volt) ;
+			if(led_flag==1) led_flag=2 ;
+			if(pps > 276){                         /// CHANGE 276 AS PER CUSTUM REQUIREMAT
 
+				dac_set_val(3.3) ;
+			}
+			else{
+				float volt=((REF_VLT * pps)/276) ;
+				dac_set_val(volt) ;
+			}
 
 		}
-
+		else dac_set_val(0) ;
 }
 
 
@@ -236,17 +264,8 @@ int main(void)
  // HAL_Delay(2000);
   HAL_GPIO_WritePin(DAC_GPIO_Port,DAC_Pin, SET) ;
   dac_set_val(0); /* set analog out to 0 */
- // HAL_Delay(5000);
-  //int32_t rpm_disp = -1;
-  //dac_set_val(3.3);
-  uint8_t frame[2];
-  frame[0]=0b00001111;
-  frame[1]=0b11111111;
-  HAL_I2C_Master_Transmit(&hi2c1, 0xC2 , frame, 2, HAL_MAX_DELAY);
-  //HAL_Delay(5000);
-  dac_set_val(2.0);
- // dac_set_with_range(1.2 , 1.2);
-  //HAL_Delay(5000);
+  HAL_Delay(2000);
+
 
   while (1)
   {		 freq_map() ;
